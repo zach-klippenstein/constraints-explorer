@@ -7,6 +7,7 @@ pluginManagement {
         includeGroupByRegex("androidx.*")
       }
     }
+    // google()
     mavenCentral()
     gradlePluginPortal()
   }
@@ -20,5 +21,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "constraints-explorer"
-include(":app")
- 
+include(":constraintsexplorer")
