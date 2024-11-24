@@ -23,7 +23,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
@@ -40,7 +39,6 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.platform.InfiniteAnimationPolicy
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.ViewConfiguration
@@ -72,14 +70,17 @@ private val ControlsForegroundColor = Color.White
  * The preview will show a controls gutter on the top and right of the preview, and a label
  * indicating the explorer is available. To access the explorer, enter “Interactive mode” using the
  * the button over the top-right of the preview frame. Once in interactive mode, the controls will
- * be shown. Drag the left/top arrows to adjust minimum width/height constraints, and the
- * bottom/right arrows to adjust maximum constraints.
+ * be shown in the gutters: drag the left/top arrows to adjust minimum width/height constraints, and
+ * the bottom/right arrows to adjust maximum constraints.
  *
  * In interactive mode, the preview will grow to fill the maximum incoming constraints. If the
  * constraints are unbounded, the preview will grow by a small amount to indicate that the content
  * is not filling maximum constraints, and the max constraints arrows will be drawn as outlines.
  * When a constraint is unbounded, dragging the maximum constraint handle past the current
  * viewport's bounds will grow the viewport.
+ *
+ * To learn more about constraints and layout, see the
+ * [Developer Android docs](https://developer.android.com/develop/ui/compose/layouts/basics).
  */
 @Composable
 public fun ConstraintsExplorer(
@@ -255,14 +256,6 @@ private fun detectInteractivePreviewMode(): State<Boolean> = produceState(false)
   withFrameMillis {}
   value = true
 }
-
-/**
- * Hack to figure out if we're in a UI test or not. In a UI test, [InfiniteAnimationPolicy] will
- * be set.
- */
-@Composable
-private fun isInUiTest(): Boolean =
-  rememberCoroutineScope().coroutineContext[InfiniteAnimationPolicy] != null
 
 /**
  * Layout [content] with a thin bar on top for [widthControls] and a thin bar on the right for

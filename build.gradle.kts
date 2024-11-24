@@ -45,8 +45,6 @@ dependencies {
   implementation(platform(libs.compose.bom))
   implementation(libs.compose.foundation)
   implementation(libs.compose.tooling.preview)
-  implementation(libs.androidx.core.ktx)
-  implementation(libs.androidx.appcompat)
 
   debugImplementation(libs.compose.tooling)
 
