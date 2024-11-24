@@ -1,4 +1,4 @@
-# constraints-explorer ![Maven Central Version](https://img.shields.io/maven-central/v/com.zachklipp/constraints-explorer)
+# constraints-explorer [![Maven Central Version](https://img.shields.io/maven-central/v/com.zachklipp/constraints-explorer)](https://central.sonatype.com/artifact/com.zachklipp/constraints-explorer)
 
 A lightweight tool to help understand and debug how Compose's layout constraints affect your
 composables. It's intended to use in previews and lets you adjust the constraints interactively:
