@@ -3,21 +3,28 @@ agp = "8.7.2"
 kotlin = "1.9.24"
 coreKtx = "1.15.0"
 junit = "4.13.2"
-junitVersion = "1.2.1"
+androidXJunit = "1.2.1"
 espressoCore = "3.6.1"
 appcompat = "1.7.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
-androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
-androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
-# This is the earliest BOM for version 7.x.
-compose-bom = "androidx.compose:compose-bom:2024.09.00"
-junit = { group = "junit", name = "junit", version.ref = "junit" }
+# Use the earliest BOM for version 7.x.
+compose-bom = "androidx.compose:compose-bom:2024.10.01"
+compose-foundation = { module = "androidx.compose.foundation:foundation" }
+compose-ui = { module = "androidx.compose.ui:ui" }
+compose-tooling = { module = "androidx.compose.ui:ui-tooling" }
+compose-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+test-androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidXJunit" }
+test-androidx-junit-ktx = { group = "androidx.test.ext", name = "junit-ktx", version.ref = "androidXJunit" }
+test-androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+test-compose-base = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+test-compose-composeRule = { group = "androidx.compose.ui", name = "ui-test-manifest" }
+test-junit = { group = "junit", name = "junit", version.ref = "junit" }
+test-kotlin-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 
 [plugins]
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 publish = { id = "com.vanniktech.maven.publish", version = "0.30.0" }
-compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version = "1.5.14" }

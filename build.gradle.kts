@@ -1,17 +1,15 @@
 plugins {
   alias(libs.plugins.android.library)
-  // alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.android)
   alias(libs.plugins.publish)
 }
 
 android {
   namespace = "com.zachklipp.constraintsexplorer"
-  compileSdk = 34
+  compileSdk = 35
 
   defaultConfig {
     minSdk = 21
-
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
@@ -24,6 +22,9 @@ android {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
   }
+  kotlin {
+    explicitApi()
+  }
   kotlinOptions {
     jvmTarget = "11"
   }
@@ -33,19 +34,28 @@ android {
   composeOptions {
     kotlinCompilerExtensionVersion = "1.5.14"
   }
+  testOptions {
+    targetSdk = 35
+  }
 }
 
 dependencies {
+  api(libs.compose.ui)
+
   implementation(platform(libs.compose.bom))
-  implementation("androidx.compose.foundation:foundation")
-  implementation("androidx.compose.ui:ui-tooling-preview")
+  implementation(libs.compose.foundation)
+  implementation(libs.compose.tooling.preview)
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.appcompat)
 
-  debugImplementation("androidx.compose.ui:ui-tooling")
+  debugImplementation(libs.compose.tooling)
 
-  testImplementation(libs.junit)
+  testImplementation(libs.test.junit)
 
-  androidTestImplementation(libs.androidx.junit)
-  androidTestImplementation(libs.androidx.espresso.core)
+  androidTestImplementation(libs.test.androidx.junit)
+  androidTestImplementation(libs.test.androidx.junit.ktx)
+  androidTestImplementation(libs.test.androidx.espresso.core)
+  androidTestImplementation(libs.test.compose.base)
+  androidTestImplementation(libs.test.compose.composeRule)
+  androidTestImplementation(libs.test.kotlin.junit)
 }
