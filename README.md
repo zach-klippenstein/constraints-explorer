@@ -57,3 +57,8 @@ By default, `ConstraintsExplorer` won't do anything when not running in a previe
 won't matter if you only use this composable in your `@Preview` functions, but it also means that
 if you're using your previews for tests (e.g. snapshot tests with Paparazzi), it won't show up in
 those tests. You can override this behavior by passing the `enabled` flag to `ConstraintsExplorer`.
+
+## Motivation
+
+This tool was originally written as a companion to an
+[article about centering](https://blog.zachklipp.com/centering-in-compose/).
