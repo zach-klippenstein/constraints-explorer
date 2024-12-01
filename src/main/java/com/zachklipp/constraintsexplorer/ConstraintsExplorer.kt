@@ -79,8 +79,63 @@ private val ControlsForegroundColor = Color.White
  * When a constraint is unbounded, dragging the maximum constraint handle past the current
  * viewport's bounds will grow the viewport.
  *
- * To learn more about constraints and layout, see the
+ * ## Want to learn more?
+ *
+ * - To learn more about constraints and layout, see the
  * [Developer Android docs](https://developer.android.com/develop/ui/compose/layouts/basics).
+ * - For a use-case-specific case study of how constraints are used to achieve centering, see
+ * [this article](https://blog.zachklipp.com/centering-in-compose/).
+ *
+ * ## A note on `fillMax*` modifiers in previews
+ *
+ * If you're passing any size-related modifier to the root composable inside your preview, you might
+ * want to move it to [ConstraintsExplorer] instead. It won't affect the static preview and it
+ * allows the explorer to actually “explore” more of your component.
+ *
+ * E.g. if you have this:
+ *
+ * ```kotlin
+ * @Preview
+ * @Composable
+ * private fun YourComposablePreview() {
+ *   ConstraintsExplorer {
+ *     YourComposable(Modifier.fillMaxSize())
+ *   }
+ * }
+ * ```
+ *
+ * consider changing it to this:
+ *
+ * ```kotlin
+ * @Preview
+ * @Composable
+ * private fun YourComposablePreview() {
+ *   ConstraintsExplorer(Modifier.fillMaxSize()) {
+ *     YourComposable()
+ *   }
+ * }
+ * ```
+ *
+ * _If you're just setting the size to an exact size, you can also do that by passing `widthDp` and
+ * `heightDp` parameters to the [Preview] annotation itself._
+ *
+ * If you're modifying the size (or more precisely, the constraints) of your composable inside the
+ * [ConstraintsExplorer], then when you're playing with the sliders in interactive mode you won't
+ * get to see how your unmodified component reacts; you'll be seeing how it reacts with the
+ * additional constraints modifier. That isn't very useful, since that modifier is only applied in
+ * the preview.
+ *
+ * [ConstraintsExplorer] will always fill all available space in interactive mode in order to allow
+ * you to modify the min/max constraints within that space and it doesn't modify the constraints at
+ * all in non-interactive mode. So moving size modifiers to [ConstraintsExplorer] won't change the
+ * non-interactive preview but allows your component to see and react to the constraints you can
+ * adjust in interactive mode.
+ *
+ * For example, when you have [fillMaxSize] inside [ConstraintsExplorer], your composable will
+ * ignore the incoming minimum constraints (the arrows pointing right and down), so moving those
+ * sliders won't have any effect, and you're not going to see how your unmodified component will
+ * actually behave in other contexts. If your component itself always fills available space, then
+ * this won't make any difference but then using [fillMaxSize] in your preview is redundant anyway.
  */
 @Composable
 public fun ConstraintsExplorer(
