@@ -8,16 +8,18 @@ import androidx.compose.foundation.gestures.Orientation.Vertical
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -25,6 +27,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
@@ -37,8 +40,15 @@ import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.layout.IntrinsicMeasurable
+import androidx.compose.ui.layout.IntrinsicMeasureScope
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasurePolicy
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.ViewConfiguration
@@ -144,7 +154,11 @@ public fun ConstraintsExplorer(
   content: @Composable () -> Unit
 ) {
   if (enabled) {
-    ConstraintsExplorerImpl(modifier, content)
+    ConstraintsExplorerImpl(
+      showControls = detectInteractivePreviewMode(),
+      modifier = modifier,
+      content = content
+    )
   } else {
     Box(modifier, propagateMinConstraints = true) {
       content()
@@ -153,11 +167,11 @@ public fun ConstraintsExplorer(
 }
 
 @Composable
-private fun ConstraintsExplorerImpl(
-  modifier: Modifier = Modifier,
+internal fun ConstraintsExplorerImpl(
+  showControls: Boolean,
+  modifier: Modifier,
   content: @Composable () -> Unit
 ) {
-  val showControls by detectInteractivePreviewMode()
   val state = remember { ConstraintsExplorerState() }
   state.showControls = showControls
 
@@ -208,7 +222,9 @@ private class ConstraintsExplorerState {
 
   /**
    * Whether the controls are being shown. When false, [contentModifier] will always measure itself
-   * to be the size of the content. When true, it will fill max size.
+   * to be the size of the content. When true, it will fill max size. This value must be set
+   * _in composition_ for the hack to work, or it will change to true too early and not correctly
+   * detect interactive mode.
    */
   var showControls: Boolean by mutableStateOf(false)
 
@@ -220,6 +236,84 @@ private class ConstraintsExplorerState {
     private set
   var maxHeight by mutableIntStateOf(Constraints.Infinity)
     private set
+
+  private val measureModifierNode = object : Modifier.Node(), LayoutModifierNode {
+    override fun MeasureScope.measure(
+      measurable: Measurable,
+      constraints: Constraints
+    ): MeasureResult {
+      val placeable = if (!showControls) {
+        incomingConstraints = constraints
+        val placeable = measurable.measure(constraints)
+
+        val viewportWidth = if (constraints.hasBoundedWidth) {
+          constraints.maxWidth
+        } else {
+          placeable.width + UnboundedConstraintsViewportPadding.roundToPx()
+        }
+        val viewportHeight = if (constraints.hasBoundedHeight) {
+          constraints.maxHeight
+        } else {
+          placeable.height + UnboundedConstraintsViewportPadding.roundToPx()
+        }
+
+        minWidth = constraints.minWidth
+        maxWidth = viewportWidth
+        minHeight = constraints.minHeight
+        maxHeight = viewportHeight
+        viewportSize = IntSize(viewportWidth, viewportHeight)
+        this@ConstraintsExplorerState.viewportSize = viewportSize
+
+        placeable
+      } else {
+        val childConstraints = Constraints(minWidth, maxWidth, minHeight, maxHeight)
+        measurable.measure(childConstraints)
+      }
+
+      val width = if (showControls) {
+        viewportSize.width
+      } else {
+        placeable.width
+      }
+      val height = if (showControls) {
+        viewportSize.height
+      } else {
+        placeable.height
+      }
+
+      return layout(width, height) {
+        placeable.place(0, 0)
+      }
+    }
+
+    override fun IntrinsicMeasureScope.minIntrinsicWidth(
+      measurable: IntrinsicMeasurable,
+      height: Int
+    ): Int {
+      TODO("Not yet implemented")
+    }
+
+    override fun IntrinsicMeasureScope.minIntrinsicHeight(
+      measurable: IntrinsicMeasurable,
+      width: Int
+    ): Int {
+      TODO("Not yet implemented")
+    }
+
+    override fun IntrinsicMeasureScope.maxIntrinsicWidth(
+      measurable: IntrinsicMeasurable,
+      height: Int
+    ): Int {
+      TODO("Not yet implemented")
+    }
+
+    override fun IntrinsicMeasureScope.maxIntrinsicHeight(
+      measurable: IntrinsicMeasurable,
+      width: Int
+    ): Int {
+      TODO("Not yet implemented")
+    }
+  }
 
   val contentModifier: Modifier = Modifier.layout { measurable, constraints ->
     val placeable = if (viewportSize == IntSize.Zero) {
@@ -307,10 +401,10 @@ private class ConstraintsExplorerState {
  * hit the code that sets the flag, we must be in interactive mode.
  */
 @Composable
-private fun detectInteractivePreviewMode(): State<Boolean> = produceState(false) {
+private fun detectInteractivePreviewMode(): Boolean = produceState(false) {
   withFrameMillis {}
   value = true
-}
+}.value
 
 /**
  * Layout [content] with a thin bar on top for [widthControls] and a thin bar on the right for
@@ -619,5 +713,19 @@ private fun PreviewWithInfiniteConstraints() {
         .background(Color.LightGray)
         .wrapContentSize(),
     )
+  }
+}
+
+@Preview(backgroundColor = 0xff0000, showBackground = true)
+@Composable
+private fun PreviewWithIntrinsics() {
+  ConstraintsExplorer(Modifier.width(IntrinsicSize.Min)) {
+    Column(
+      modifier = Modifier.background(Color.LightGray),
+      horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+      BasicText("First text")
+      BasicText("Second text")
+    }
   }
 }
