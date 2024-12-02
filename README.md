@@ -58,6 +58,14 @@ won't matter if you only use this composable in your `@Preview` functions, but i
 if you're using your previews for tests (e.g. snapshot tests with Paparazzi), it won't show up in
 those tests. You can override this behavior by passing the `enabled` flag to `ConstraintsExplorer`.
 
+### Unbounded maximum constraints
+
+Clicking on a maximum constraint handle will toggle whether that constraint is “unbounded”. An
+unbounded maximum constraint has value `Constraints.Infinity` and is indicated by the arrow being
+drawn with a dotted outline. Dragging an unbounded handle will re-enable its bound automatically.
+
+![screen recording of toggling unbounded constraint](assets/preview-toggling-unbounded-constraints.gif)
+
 ### A note on `fillMax*` modifiers in previews
 
 If you're passing any size-related modifier to the root composable inside your preview, you might

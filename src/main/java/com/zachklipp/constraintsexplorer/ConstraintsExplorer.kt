@@ -1,6 +1,8 @@
 package com.zachklipp.constraintsexplorer
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.DraggableState
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.Orientation.Horizontal
@@ -8,6 +10,7 @@ import androidx.compose.foundation.gestures.Orientation.Vertical
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
@@ -17,7 +20,6 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -25,6 +27,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
@@ -33,6 +36,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect.Companion.dashPathEffect
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
@@ -42,6 +46,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.ViewConfiguration
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,8 +59,12 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 
 internal const val PreviewHeaderText = "Constraints explorer available"
+internal const val MinWidthHandleTag = "min width handle"
+internal const val MaxWidthHandleTag = "max width handle"
+internal const val MinHeightHandleTag = "min height handle"
+internal const val MaxHeightHandleTag = "max height handle"
 internal val ControlsSize = 20.dp
-private val ConstraintHandleSize = 5.dp
+internal val ConstraintHandleSize = 5.dp
 private val ControlsFontSize = 10.sp
 private val UnboundedConstraintsViewportPadding = 50.dp
 private val ControlsBackgroundColor = Color.DarkGray
@@ -77,7 +86,10 @@ private val ControlsForegroundColor = Color.White
  * constraints are unbounded, the preview will grow by a small amount to indicate that the content
  * is not filling maximum constraints, and the max constraints arrows will be drawn as outlines.
  * When a constraint is unbounded, dragging the maximum constraint handle past the current
- * viewport's bounds will grow the viewport.
+ * viewport's bounds will grow the viewport. Clicking on a maximum constraint handle will toggle
+ * whether that constraint is “unbounded” or not. An unbounded maximum constraint has value
+ * [Constraints.Infinity] and is indicated by the arrow being drawn with a dotted outline. Dragging
+ * an unbounded handle will re-enable its bound automatically.
  *
  * ## Want to learn more?
  *
@@ -144,7 +156,11 @@ public fun ConstraintsExplorer(
   content: @Composable () -> Unit
 ) {
   if (enabled) {
-    ConstraintsExplorerImpl(modifier, content)
+    ConstraintsExplorerImpl(
+      showControls = detectInteractivePreviewMode(),
+      modifier = modifier,
+      content = content
+    )
   } else {
     Box(modifier, propagateMinConstraints = true) {
       content()
@@ -153,11 +169,11 @@ public fun ConstraintsExplorer(
 }
 
 @Composable
-private fun ConstraintsExplorerImpl(
+internal fun ConstraintsExplorerImpl(
+  showControls: Boolean,
   modifier: Modifier = Modifier,
   content: @Composable () -> Unit
 ) {
-  val showControls by detectInteractivePreviewMode()
   val state = remember { ConstraintsExplorerState() }
   state.showControls = showControls
 
@@ -179,9 +195,11 @@ private fun ConstraintsExplorerImpl(
         WidthConstraintsControls(
           min = state.minWidth,
           max = state.maxWidth,
-          fillMax = state.incomingConstraints.hasBoundedWidth,
+          fillMax = state.incomingConstraints.hasBoundedWidth && !state.widthUnbounded,
+          dottedOutline = state.widthUnbounded,
           onMinDrag = { state.offsetMinWidth(it.roundToInt()) },
-          onMaxDrag = { state.offsetMaxWidth(it.roundToInt()) }
+          onMaxDrag = { state.offsetMaxWidth(it.roundToInt()) },
+          onMaxClick = { state.toggleWidthBounded() },
         )
       }
     },
@@ -190,9 +208,12 @@ private fun ConstraintsExplorerImpl(
         HeightConstraintsControls(
           min = state.minHeight,
           max = state.maxHeight,
-          fillMax = state.incomingConstraints.hasBoundedHeight,
+          fillMax = state.incomingConstraints.hasBoundedHeight && !state.heightUnbounded,
+          dottedOutline = state.heightUnbounded,
           onMinDrag = { state.offsetMinHeight(it.roundToInt()) },
-          onMaxDrag = { state.offsetMaxHeight(it.roundToInt()) })
+          onMaxDrag = { state.offsetMaxHeight(it.roundToInt()) },
+          onMaxClick = { state.toggleHeightBounded() },
+        )
       }
     },
     content = content,
@@ -221,6 +242,11 @@ private class ConstraintsExplorerState {
   var maxHeight by mutableIntStateOf(Constraints.Infinity)
     private set
 
+  var widthUnbounded by mutableStateOf(false)
+    private set
+  var heightUnbounded by mutableStateOf(false)
+    private set
+
   val contentModifier: Modifier = Modifier.layout { measurable, constraints ->
     val placeable = if (viewportSize == IntSize.Zero) {
       incomingConstraints = constraints
@@ -229,11 +255,13 @@ private class ConstraintsExplorerState {
       val viewportWidth = if (constraints.hasBoundedWidth) {
         constraints.maxWidth
       } else {
+        widthUnbounded = true
         placeable.width + UnboundedConstraintsViewportPadding.roundToPx()
       }
       val viewportHeight = if (constraints.hasBoundedHeight) {
         constraints.maxHeight
       } else {
+        heightUnbounded = true
         placeable.height + UnboundedConstraintsViewportPadding.roundToPx()
       }
 
@@ -242,11 +270,12 @@ private class ConstraintsExplorerState {
       minHeight = constraints.minHeight
       maxHeight = viewportHeight
       viewportSize = IntSize(viewportWidth, viewportHeight)
-      this@ConstraintsExplorerState.viewportSize = viewportSize
 
       placeable
     } else {
-      val childConstraints = Constraints(minWidth, maxWidth, minHeight, maxHeight)
+      val childMaxWidth = if (widthUnbounded) Constraints.Infinity else maxWidth
+      val childMaxHeight = if (heightUnbounded) Constraints.Infinity else maxHeight
+      val childConstraints = Constraints(minWidth, childMaxWidth, minHeight, childMaxHeight)
       measurable.measure(childConstraints)
     }
 
@@ -275,6 +304,7 @@ private class ConstraintsExplorerState {
   fun offsetMaxWidth(delta: Int) {
     maxWidth = (maxWidth + delta).coerceIn(0, incomingConstraints.maxWidth)
     minWidth = minWidth.coerceAtMost(maxWidth)
+    widthUnbounded = false
     updateViewport()
   }
 
@@ -287,7 +317,16 @@ private class ConstraintsExplorerState {
   fun offsetMaxHeight(delta: Int) {
     maxHeight = (maxHeight + delta).coerceIn(0, incomingConstraints.maxHeight)
     minHeight = minHeight.coerceAtMost(maxHeight)
+    heightUnbounded = false
     updateViewport()
+  }
+
+  fun toggleWidthBounded() {
+    widthUnbounded = !widthUnbounded
+  }
+
+  fun toggleHeightBounded() {
+    heightUnbounded = !heightUnbounded
   }
 
   private fun updateViewport() {
@@ -307,10 +346,10 @@ private class ConstraintsExplorerState {
  * hit the code that sets the flag, we must be in interactive mode.
  */
 @Composable
-private fun detectInteractivePreviewMode(): State<Boolean> = produceState(false) {
+private fun detectInteractivePreviewMode(): Boolean = produceState(false) {
   withFrameMillis {}
   value = true
-}
+}.value
 
 /**
  * Layout [content] with a thin bar on top for [widthControls] and a thin bar on the right for
@@ -379,8 +418,10 @@ private fun WidthConstraintsControls(
   min: Int,
   max: Int,
   fillMax: Boolean,
+  dottedOutline: Boolean,
   onMinDrag: (Float) -> Unit,
-  onMaxDrag: (Float) -> Unit
+  onMaxDrag: (Float) -> Unit,
+  onMaxClick: () -> Unit,
 ) {
   Layout(
     content = {
@@ -389,13 +430,19 @@ private fun WidthConstraintsControls(
           orientation = Horizontal,
           min = true,
           fill = true,
-          onDrag = onMinDrag
+          dotted = false,
+          onDrag = onMinDrag,
+          onClick = null,
+          modifier = Modifier.testTag(MinWidthHandleTag),
         )
         ConstraintHandle(
           orientation = Horizontal,
           min = false,
           fill = fillMax,
-          onDrag = onMaxDrag
+          dotted = dottedOutline,
+          onDrag = onMaxDrag,
+          onClick = onMaxClick,
+          modifier = Modifier.testTag(MaxWidthHandleTag),
         )
       }
     },
@@ -437,8 +484,10 @@ private fun HeightConstraintsControls(
   min: Int,
   max: Int,
   fillMax: Boolean,
+  dottedOutline: Boolean,
   onMinDrag: (Float) -> Unit,
-  onMaxDrag: (Float) -> Unit
+  onMaxDrag: (Float) -> Unit,
+  onMaxClick: () -> Unit,
 ) {
   Layout(
     content = {
@@ -447,13 +496,19 @@ private fun HeightConstraintsControls(
           orientation = Vertical,
           min = true,
           fill = true,
-          onDrag = onMinDrag
+          dotted = false,
+          onDrag = onMinDrag,
+          onClick = null,
+          modifier = Modifier.testTag(MinHeightHandleTag),
         )
         ConstraintHandle(
           orientation = Vertical,
           min = false,
           fill = fillMax,
-          onDrag = onMaxDrag
+          dotted = dottedOutline,
+          onDrag = onMaxDrag,
+          onClick = onMaxClick,
+          modifier = Modifier.testTag(MaxHeightHandleTag),
         )
       }
     },
@@ -506,14 +561,18 @@ private fun ConstraintHandle(
   orientation: Orientation,
   min: Boolean,
   fill: Boolean,
-  onDrag: (Float) -> Unit
+  dotted: Boolean,
+  onDrag: (Float) -> Unit,
+  onClick: (() -> Unit)?,
+  modifier: Modifier,
 ) {
   val state = remember { DraggableState(onDrag) }
   Box(
-    Modifier
+    modifier
       .draggable(state, orientation = orientation)
+      .then(onClick?.let { Modifier.clickable(onClick = onClick) } ?: Modifier)
       .drawWithCache {
-        val path = Path().apply {
+        val arrow = Path().apply {
           moveTo(0f, 0f)
           when (orientation) {
             Horizontal -> {
@@ -528,12 +587,23 @@ private fun ConstraintHandle(
           }
           close()
         }
-        val style = if (fill) Fill else Stroke(1.dp.toPx())
+        val arrowStyle = if (fill) {
+          Fill
+        } else {
+          Stroke(
+            width = 1.dp.toPx(),
+            pathEffect = if (dotted) {
+              dashPathEffect(floatArrayOf(2.dp.toPx(), 2.dp.toPx()))
+            } else {
+              null
+            }
+          )
+        }
         onDrawBehind {
           withTransform({
             if (!min) rotate(180f)
           }) {
-            drawPath(path, ControlsForegroundColor, style = style)
+            drawPath(arrow, ControlsForegroundColor, style = arrowStyle)
           }
         }
       }
@@ -556,6 +626,7 @@ private fun StaticPreviewHeader() {
   )
 }
 
+@SuppressLint("UnusedBoxWithConstraintsScope")
 @Preview(backgroundColor = 0xff0000, showBackground = true)
 @Composable
 private fun PreviewWithPreferredSizeSmallerThanPreviewSize() {
@@ -568,13 +639,24 @@ private fun PreviewWithPreferredSizeSmallerThanPreviewSize() {
         maxWidth = 300.dp, maxHeight = 300.dp
       )
   ) {
-    BasicText(
-      "Preferred size: $size",
-      modifier = Modifier
-        .size(size)
-        .background(Color.LightGray)
-        .wrapContentSize(),
-    )
+    BoxWithConstraints(
+      contentAlignment = Alignment.Center,
+      propagateMinConstraints = true,
+      modifier = Modifier.background(Color.LightGray)
+    ) {
+      BasicText(
+        "Preferred size: $size\n" +
+          "Width: [${constraints.minWidth}, ${constraints.maxWidth.toInfinityString()}]\n" +
+          "Height: [${constraints.minHeight}, ${constraints.maxHeight.toInfinityString()}]",
+        style = TextStyle(
+          fontSize = 12.sp,
+          textAlign = TextAlign.Center,
+        ),
+        modifier = Modifier
+          .size(size)
+          .wrapContentSize()
+      )
+    }
   }
 }
 
@@ -621,3 +703,7 @@ private fun PreviewWithInfiniteConstraints() {
     )
   }
 }
+
+@Suppress("KotlinConstantConditions")
+private fun Int.toInfinityString(): String =
+  if (this == Constraints.Infinity) "∞" else this.toString()
